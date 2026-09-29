@@ -2,12 +2,15 @@
 
 为 DSH Web 客户端的 **plan 模式审批卡片**增加第三个选项「压缩后执行」：先把计划提交之前的上下文压缩成一条摘要检查点，再批准计划，模型带着**逐字保留的计划**开始执行。
 
+[![Listed on dsh-plugin.org](https://dsh-plugin.org/badges/listed.svg)](https://dsh-plugin.org/zh/plugins/spookywaste/dsh-plan-compact-execute)
 
-English | [English](README.en.md)
-
-![计划审批卡片：标题行里的「压缩后执行」与官方「查看全文」，底部仍是官方两个决策](img/example2.png)
+中文 | [English](README.en.md)
 
 ## 它做什么
+
+<p align="center">
+  <img src="img/example2.png" width="500" title="计划审批卡片：标题行里的「压缩后执行」与官方「查看全文」，底部仍是官方两个决策" >
+</p>
 
 - 在审批卡片的标题行增加一个「压缩后执行」按钮。
 - 点它以后先把该会话中**计划提交之前**的历史压成摘要，再以问题自带的批准标签（`exit_plan_mode` 的 `Approve`）回答挂起的问题，计划模式随即退出。
