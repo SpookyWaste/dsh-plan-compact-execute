@@ -1,6 +1,6 @@
 {
   "name": "dsh-plan-compact-execute",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Adds a Compact-and-run option to the DSH Web plan-review card: compact the history submitted before the plan, then approve it.",
   "keywords": [
     "dsh",
