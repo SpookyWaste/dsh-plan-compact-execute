@@ -8,9 +8,9 @@
  * host codecs still validate their wire boundaries in both codec generations.
  */
 import assert from "node:assert/strict";
-import { loadBundle, createCtxStub, BUNDLE_ID } from "./test/bundle.mjs";
-import { TYPERT, compactBeforeExecuteResultSchema } from "./lib/typert.js";
-import { ENDPOINT_ID, RESULT_SYMBOL, SESSION_ID_SYMBOL, SESSION_ID_WIRE } from "./lib/protocol.js";
+import { loadBundle, createCtxStub, BUNDLE_ID } from "./bundle.mjs";
+import { TYPERT, compactBeforeExecuteResultSchema } from "../lib/typert.js";
+import { ENDPOINT_ID, RESULT_SYMBOL, SESSION_ID_SYMBOL, SESSION_ID_WIRE } from "../lib/protocol.js";
 
 let failures = 0;
 const check = (label, fn) => {

@@ -17,9 +17,9 @@
  */
 import assert from "node:assert/strict";
 import { Context } from "@deepseek-ai/cordis";
-import * as host from "./lib/index.js";
-import { METHOD_NAME, PACKAGE_NAME } from "./lib/protocol.js";
-import { node, session } from "./test/session.mjs";
+import * as host from "../lib/index.js";
+import { METHOD_NAME, PACKAGE_NAME } from "../lib/protocol.js";
+import { node, session } from "./session.mjs";
 
 let failures = 0;
 const check = async (label, fn) => {

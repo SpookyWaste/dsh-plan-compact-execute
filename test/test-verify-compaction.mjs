@@ -11,7 +11,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import zlib from "node:zlib";
-import { readEvents, verifyEvents } from "./scripts/verify-compaction.mjs";
+import { readEvents, verifyEvents } from "../scripts/verify-compaction.mjs";
 
 let failures = 0;
 const check = (label, fn) => {

@@ -9,8 +9,8 @@
  */
 import assert from "node:assert/strict";
 import { toolPairingBalancedAfter, toolPairingBalancedBefore } from "@deepseek-ai/dsh-compaction";
-import { compactableRangeBeforePendingBatch, NOT_A_PENDING_BATCH } from "./lib/range.js";
-import { node, session } from "./test/session.mjs";
+import { compactableRangeBeforePendingBatch, NOT_A_PENDING_BATCH } from "../lib/range.js";
+import { node, session } from "./session.mjs";
 
 /** Only the session half of the fixture is needed here. */
 const surface = (entries) => session(entries).session;
