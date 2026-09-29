@@ -1,0 +1,8 @@
+# dsh-plan-compact-execute bundle patch.
+# Installed with `dsh plugin --profile web add ...`, the profile appends this
+# package to dsh.profile.bundles and applies this layer, so the host half mounts
+# without manual cordis.patch.yml editing. The client half is served from
+# lib/client.js because package.json declares dsh.client.
+- insert:
+    - id: plan-compact-execute
+      name: dsh-plan-compact-execute

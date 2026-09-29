@@ -1,0 +1,80 @@
+{
+  "name": "dsh-plan-compact-execute",
+  "version": "0.1.0",
+  "description": "Adds a Compact-and-run option to the DSH Web plan-review card: compact the history submitted before the plan, then approve it.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "plan-mode",
+    "compaction"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-user-questions"
+      ]
+    }
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-compaction": ">=0.1.7-rc.2 <0.2.0",
+    "@deepseek-ai/dsh-typert-protocol": ">=0.1.7-rc.2 <0.2.0",
+    "@deepseek-ai/schemastery": "^3.18.3",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.4"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-agent": ">=0.1.7-rc.2 <0.2.0",
+    "@deepseek-ai/dsh-agent-preset-registry": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-api-remotes": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-client-locale": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-client-ui-conversation": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-client-ui-session": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-client-ui-user-questions": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-session": ">=0.1.7-rc.2 <0.2.0",
+    "@deepseek-ai/dsh-token-meter": ">=0.1.7-rc.2 <0.2.0",
+    "@deepseek-ai/dsh-typert-registry": "^0.1.7-rc.2",
+    "@types/node": "^26.2.0",
+    "@types/react": "~18.3.1",
+    "react": "^18.3.1",
+    "typescript": "^7.0.2"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/strip-client-export.mjs",
+    "test": "node scripts/run-tests.mjs",
+    "prepack": "tsc -p tsconfig.json && node scripts/strip-client-export.mjs"
+  },
+  "files": [
+    "lib",
+    "img",
+    "cordis.patch.yml",
+    "README.md",
+    "README.en.md"
+  ]
+}
