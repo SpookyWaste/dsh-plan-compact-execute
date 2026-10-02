@@ -30,6 +30,16 @@
  * unpublished — when a failed attempt releases the lock. `test-lock-protocol.mjs`
  * pins the mechanism against the installed bundles.
  *
+ * Context occupancy. This card is a composer takeover, so the ring the official
+ * composer renders below its input — the one reading the user would compare a
+ * compaction against — is not on screen while the decision is. The decision's
+ * own leading icon therefore carries that reading: the official compact mark's
+ * ring drawn as the occupancy of the next request, from the same
+ * `contextPressure` projection and the same resolution the official meter uses
+ * (`test-official-parity.mjs` fails when that resolution drifts). The exact
+ * percentage stays in the tooltip, and a session without a reported capacity or
+ * usage keeps the unmodified official mark rather than claiming zero.
+ *
  * Artifact contract: this file compiles to a classic script served as
  * `/plugins/<package>/client.js`. It may only `require` the shell seed modules
  * (`react`, `react/jsx-runtime`, `@deepseek-ai/dsh-client-ui-primitives`), it
@@ -47,6 +57,7 @@ import type { PlanReview } from '@deepseek-ai/dsh-client-ui-user-questions/clien
 import type { SessionPendingInteraction, UiSession } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+import type { ContextPressureProjection } from '@deepseek-ai/dsh-token-meter/client'
 import type { CompactBeforeExecuteResult } from './protocol.js'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -113,11 +124,32 @@ const COMPACTION_DEADLINE_MS = 5 * 60 * 1000
  */
 const SETTLE_GRACE_MS = 400
 
+/**
+ * Geometry of the occupancy ring, matching the official compact icon's artwork:
+ * the same square view box and the same radius, drawn at the icon slot's 14px.
+ *
+ * The ring replaces that artwork, so it has to land in the same pixel box; the
+ * stroke is the artwork's own 1 unit, widened just enough for a partial arc to
+ * read at that size.
+ */
+const RING_VIEWBOX = 16
+/** Radius of the ring inside the view box: the artwork's own circle. */
+const RING_RADIUS = 6.5
+/** Centre of that circle, and the pivot the arc is rotated about. */
+const RING_CENTER = RING_VIEWBOX / 2
+/** Length of one full turn, the unit `stroke-dasharray` measures an arc in. */
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
+/** Stroke width of the track and the arc alike. */
+const RING_STROKE_WIDTH = 1.25
+/** Track tone: the opacity the official artwork fades its own full circle to. */
+const RING_TRACK_OPACITY = 0.35
+
 /** Simplified Chinese dictionary (the key-set source of truth). */
 const zh = {
   'compactExecute': '压缩后执行',
   'compacting': '压缩中…',
   'compactHint': '把计划提交前的历史压缩成摘要，然后立即执行计划',
+  'compactHintUsage': '把计划提交前的历史压缩成摘要，然后立即执行计划（上下文已用 {percent}）',
   'compactionFailedPrefix': '压缩失败：',
   'compactionTimedOut': '压缩超时，已解除锁定，可以重试。',
   'answerFailedPrefix': '未能执行计划：',
@@ -133,6 +165,7 @@ const en: Record<keyof typeof zh, string> = {
   'compactExecute': 'Compact and run',
   'compacting': 'Compacting…',
   'compactHint': 'Compact the history submitted before the plan, then run it immediately',
+  'compactHintUsage': 'Compact the history submitted before the plan, then run it immediately ({percent} of context used)',
   'compactionFailedPrefix': 'Compaction failed: ',
   'compactionTimedOut': 'The compaction timed out; the lock is released and you can try again.',
   'answerFailedPrefix': 'The plan was not run: ',
@@ -267,6 +300,17 @@ interface PlanCompactFace {
   compactThenApprove: (request: CompactRequest) => void
 }
 
+/**
+ * The session standard prop that resolves one host projection by key.
+ *
+ * Declared here rather than imported: the framework declares `useProjection` in
+ * `@deepseek-ai/dsh-api-session-controller`, which this bundle does not depend
+ * on, and the one projection this control reads is the token-meter's own
+ * browser-safe contract. Spelling the key out keeps a renamed projection a
+ * compile error instead of a silent `undefined`.
+ */
+type ProjectionReader = (key: 'contextPressure') => ContextPressureProjection | undefined
+
 /** Fully composed props of the decision control. */
 type PlanCompactActionProps = ComposedProps<
   'conversation.plan-review.actions',
@@ -310,6 +354,7 @@ type PlanCompactProgressProps = ComposedProps<
       // is clipped by the card only if the card is shorter than its own summary.
       '.PCE_control{position:relative;flex:none;align-items:center;gap:8px;margin-right:10px;display:inline-flex}' +
       '.PCE_control .PCE_compact{gap:6px;white-space:nowrap;font-size:14px;font-weight:600;padding:0 12px}' +
+      '.PCE_ring{flex:none}' +
       '.PCE_failure{position:absolute;top:calc(100% + 6px);right:0;z-index:1;width:max-content;max-width:min(360px,60vw);white-space:normal;color:var(--dsw-alias-state-error-primary);background:var(--dsw-specific-input-major);border:1px solid var(--dsw-alias-border-l2);border-radius:8px;box-shadow:var(--dsw-elevation-panel);padding:6px 8px;font-size:12px;line-height:16px}' +
       '.PCE_frame{padding:6px calc(var(--dsh-composer-side-clearance) + 16px) 10px;justify-content:center;display:flex}' +
       '.PCE_card{width:100%;max-width:var(--dsh-chat-content-width);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-xl);background:var(--dsw-specific-input-major);box-shadow:var(--dsw-elevation-panel);color:var(--dsw-alias-label-primary);border:0;flex-direction:column;display:flex;overflow:hidden}' +
@@ -357,6 +402,27 @@ type PlanCompactProgressProps = ComposedProps<
           (cause: unknown) => settle({ kind: 'rejected', cause }),
         )
       })
+    }
+
+    /**
+     * Occupancy of the next request against the newest known route capacity.
+     *
+     * Mirrors the official composer meter's own resolution — `contextOccupancy`
+     * in `@deepseek-ai/dsh-client-ui-conversation` — which this bundle may not
+     * import: a bundled client may only require the shell seeds, so the formula
+     * is repeated, and `test-official-parity.mjs` fails the day the official one
+     * changes. `projectedTokens` is preferred because it follows the surface a
+     * compaction has already rewritten, which is the difference this decision
+     * is about.
+     *
+     * @param pressure - latest `contextPressure` projection value.
+     * @returns display percentage in 0..100, or undefined until usage and capacity are both known.
+     */
+    function occupancyPercent(pressure: ContextPressureProjection | undefined): number | undefined {
+      const used = pressure?.projectedTokens ?? pressure?.pressureTokens
+      const window = pressure?.contextWindow
+      if (used === undefined || window === undefined) return undefined
+      return Math.min(100, Math.round(used / window * 100))
     }
 
     /**
@@ -595,6 +661,55 @@ type PlanCompactProgressProps = ComposedProps<
       }
 
       /**
+       * Render the decision's leading icon: the official compact mark, or — once
+       * a reading exists — that mark's ring drawn as the current occupancy.
+       *
+       * The track is the official artwork's own faded circle so the two look like
+       * one control; the arc starts at twelve o'clock and runs clockwise, the
+       * direction the official composer meter's ring runs. A session with no
+       * reading keeps the untouched mark rather than an empty ring, which would
+       * read as a measured zero.
+       *
+       * @param props.percent - occupancy in whole percent, or undefined without a reading.
+       * @returns the 14px icon node for the decision button.
+       */
+      function ContextRing({ percent }: { percent: number | undefined }): ReactNode {
+        if (percent === undefined) return <primitives.IconCompactOutlineRegular size={14} />
+        return (
+          <svg
+            className="PCE_ring"
+            width={14}
+            height={14}
+            viewBox={`0 0 ${RING_VIEWBOX} ${RING_VIEWBOX}`}
+            aria-hidden={true}
+          >
+            <circle
+              cx={RING_CENTER}
+              cy={RING_CENTER}
+              r={RING_RADIUS}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={RING_STROKE_WIDTH}
+              opacity={RING_TRACK_OPACITY}
+            />
+            {percent <= 0 ? null : (
+              <circle
+                cx={RING_CENTER}
+                cy={RING_CENTER}
+                r={RING_RADIUS}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={RING_STROKE_WIDTH}
+                strokeLinecap="round"
+                strokeDasharray={`${RING_CIRCUMFERENCE * percent / 100} ${RING_CIRCUMFERENCE}`}
+                transform={`rotate(-90 ${RING_CENTER} ${RING_CENTER})`}
+              />
+            )}
+          </svg>
+        )
+      }
+
+      /**
        * Render the third decision beside the official controls.
        * @param props - review owner props, business face, and localized copy.
        * @returns the decision control.
@@ -607,6 +722,8 @@ type PlanCompactProgressProps = ComposedProps<
         // Read at click time: the carrier is the review's own live interaction,
         // and answering through it is the only way to settle the request.
         const carrier = props.useSessionStatus((status) => reviewCarrier(status.get(sessionId)?.pendingInteraction))
+        const readPressure = props.useProjection as ProjectionReader
+        const percent = occupancyPercent(readPressure('contextPressure'))
         const failure = task?.phase === 'failed' ? failureText(task.failure, t) : undefined
         const label = task?.phase === 'applying'
           ? t('progressApplying')
@@ -618,9 +735,9 @@ type PlanCompactProgressProps = ComposedProps<
               variant="outline"
               size="sm"
               className="PCE_compact"
-              title={t('compactHint')}
+              title={percent === undefined ? t('compactHint') : t('compactHintUsage', { percent: percent + '%' })}
               disabled={busy}
-              icon={<primitives.IconCompactOutlineRegular size={14} />}
+              icon={<ContextRing percent={percent} />}
               onClick={() => {
                 props.compactThenApprove({ review, requestKey, carrier })
               }}

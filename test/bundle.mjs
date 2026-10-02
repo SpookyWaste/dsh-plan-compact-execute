@@ -331,10 +331,17 @@ export function createPendingRegistry() {
  * the live pending-interaction winner — exactly the source the official panel's
  * `pendingInteraction` owner prop comes from.
  *
- * @param options - `sessionId`, and the registry the status reads.
+ * `useProjection` follows `dsh-client-ui-session`'s own session source: the
+ * `projection` keyed hook under its `use<Name>` prop name. A caller that passes
+ * a value for `contextPressure` is feeding the reading the occupancy ring
+ * resolves; leaving it out means the host reported nothing, which is the only
+ * case where the control must fall back to the official icon.
+ *
+ * @param options - `sessionId`, the registry the status reads, and an optional
+ * `contextPressure` projection value.
  * @returns the standard props share.
  */
-export function composeStandardProps({ sessionId, registry }) {
+export function composeStandardProps({ sessionId, registry, contextPressure }) {
   const statuses = () => {
     const status = new Map();
     if (registry !== undefined) {
@@ -348,7 +355,7 @@ export function composeStandardProps({ sessionId, registry }) {
     useSessionStatus: (selector) => selector(statuses()),
     useSessions: (selector) => selector({ ids: [sessionId], byId: {}, phase: "ready" }),
     useSession: (selector) => selector(undefined),
-    useProjection: () => undefined,
+    useProjection: (key) => (key === "contextPressure" ? contextPressure : undefined),
   };
 }
 

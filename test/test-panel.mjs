@@ -160,7 +160,11 @@ const plain = (value) => JSON.parse(JSON.stringify(value));
       review: REVIEW,
       requestKey: fixture.requestKey,
       t: ctx.locale.bind(NAMESPACE),
-      ...composeStandardProps({ sessionId: fixture.sessionId, registry: state.pending }),
+      ...composeStandardProps({
+        sessionId: fixture.sessionId,
+        registry: state.pending,
+        contextPressure: fixture.contextPressure,
+      }),
       ...composeInjectProps(actionFace(fixture.sessionId)),
     };
     react.beginRender();
@@ -371,6 +375,91 @@ const plain = (value) => JSON.parse(JSON.stringify(value));
 
   await check("the progress card renders nothing without a lock of its own session", async () => {
     assert.equal(renderProgress("another-session"), null);
+  });
+
+  // ── The occupancy ring ────────────────────────────────────────────────────
+  // The decision's icon carries the reading the official composer meter would
+  // show, because this card displaces that composer. These checks drive the
+  // shipped bundle with a `contextPressure` value and read the arc it draws.
+  /**
+   * The decision's leading icon node, materialized. The harness records elements
+   * without rendering nested components, and this icon is the one component it
+   * has to reach into; it keeps no hooks, so invoking it is the node React would
+   * have produced.
+   */
+  const icon = () => {
+    const node = control().props.icon;
+    return typeof node?.type === "function" ? node.type(node.props) : node;
+  };
+  /** The occupancy ring, when the control drew one instead of the official mark. */
+  const ring = () => (icon()?.props?.className === "PCE_ring" ? icon() : undefined);
+  /** The arc circle: the ring's child the dash length identifies. */
+  const arc = () => (ring()?.children ?? []).find((child) => child != null && child.props?.strokeDasharray !== undefined);
+  /** The arc's share of one full turn, recomputed from the rendered circle's own radius. */
+  const arcShare = () => {
+    const [drawn] = String(arc().props.strokeDasharray).split(" ");
+    return Number(drawn) / (2 * Math.PI * Number(arc().props.r));
+  };
+
+  await check("the ring draws the occupancy the official meter reads", async () => {
+    const reading = fixture();
+    renderAction({ ...reading, contextPressure: { projectedTokens: 84000, contextWindow: 200000 } });
+    assert.ok(ring(), "a reported usage and capacity must replace the official compact mark");
+    assert.ok(Math.abs(arcShare() - 0.42) < 1e-9, `the arc must be 42% of the ring, got ${arcShare()}`);
+    assert.equal(control().props.title, "把计划提交前的历史压缩成摘要，然后立即执行计划（上下文已用 42%）");
+    assert.equal(label(), "压缩后执行", "the ring must not change the decision's own label");
+    assert.equal(buttons().length, 1, "the ring stays inside the existing decision button");
+  });
+
+  await check("the reading prefers the value a compaction has already moved", async () => {
+    const reading = fixture();
+    renderAction({
+      ...reading,
+      contextPressure: { pressureTokens: 10000, projectedTokens: 84000, contextWindow: 200000 },
+    });
+    assert.ok(
+      Math.abs(arcShare() - 0.42) < 1e-9,
+      "projectedTokens describes the next request, so it must win over the sampled pressure",
+    );
+  });
+
+  await check("the reading never claims more than a full window", async () => {
+    const reading = fixture();
+    renderAction({ ...reading, contextPressure: { projectedTokens: 400000, contextWindow: 200000 } });
+    assert.ok(Math.abs(arcShare() - 1) < 1e-9, `a full window must fill the ring, got ${arcShare()}`);
+    assert.equal(control().props.title, "把计划提交前的历史压缩成摘要，然后立即执行计划（上下文已用 100%）");
+  });
+
+  await check("without a reading the official mark and the plain hint stay", async () => {
+    for (const contextPressure of [undefined, { pressureTokens: 84000 }, { contextWindow: 200000 }]) {
+      const reading = fixture();
+      renderAction({ ...reading, contextPressure });
+      assert.equal(ring(), undefined, "usage without a capacity is not a reading");
+      assert.equal(control().props.title, "把计划提交前的历史压缩成摘要，然后立即执行计划");
+      assert.equal(label(), "压缩后执行");
+    }
+  });
+
+  await check("a measured zero draws the track alone", async () => {
+    const reading = fixture();
+    renderAction({ ...reading, contextPressure: { projectedTokens: 0, contextWindow: 200000 } });
+    assert.ok(ring(), "a reported zero is still a reading");
+    assert.equal(arc(), undefined, "a zero-length arc with round caps would draw a dot");
+    assert.equal(control().props.title, "把计划提交前的历史压缩成摘要，然后立即执行计划（上下文已用 0%）");
+  });
+
+  await check("the reading stays on screen while the compaction runs", async () => {
+    const reading = fixture({ verbs: ["dismiss", "snapshot"] });
+    const contextPressure = { projectedTokens: 84000, contextWindow: 200000 };
+    remoteCalls.length = 0;
+    renderAction({ ...reading, contextPressure });
+    control().props.onClick();
+    renderAction({ ...reading, contextPressure });
+    assert.equal(label(), "压缩中…");
+    assert.ok(ring(), "the ring is the only occupancy left once the official composer is displaced");
+    assert.equal(control().props.title, "把计划提交前的历史压缩成摘要，然后立即执行计划（上下文已用 42%）");
+    remoteCalls.at(-1).deferred.resolve({ ok: true, value: { outcome: "compacted", shadowedNodes: 1, shadowedTokens: 400 } });
+    await flush();
   });
 }
 

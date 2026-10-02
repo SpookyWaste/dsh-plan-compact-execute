@@ -15,7 +15,10 @@
  *   uses, so a generation that renames one leaves this control calling a verb
  *   that no longer exists;
  * - the one message this plugin mirrors from the official panel (`status.sent`)
- *   must keep the official wording where the official generation ships one.
+ *   must keep the official wording where the official generation ships one;
+ * - the decision's occupancy ring repeats the composer meter's own resolution
+ *   (`contextPressure` → `projectedTokens ?? pressureTokens` over
+ *   `contextWindow`), which a bundled client cannot import.
  *
  * The gate loads the INSTALLED bundles in the same vm harness as the shipped one
  * and reads the installed artifacts. A missing or unloadable official bundle
@@ -41,6 +44,9 @@ const check = async (label, fn) => {
 /** Official packages whose plan-review presentation this plugin joins. */
 const OFFICIAL_PACKAGE = "@deepseek-ai/dsh-client-ui-user-questions";
 const PLAN_PACKAGE = "@deepseek-ai/dsh-client-ui-plan";
+
+/** The composer meter this plugin's decision ring mirrors the reading of. */
+const METER_PACKAGE = "@deepseek-ai/dsh-client-ui-conversation";
 
 /** The slot both other parties touch. */
 const SLOT = "conversation.plan-review.actions";
@@ -69,6 +75,7 @@ const readOfficial = (packageName) => {
 // ── Load the installed official bundles ─────────────────────────────────────
 const official = readOfficial(OFFICIAL_PACKAGE);
 const plan = readOfficial(PLAN_PACKAGE);
+const meter = readOfficial(METER_PACKAGE);
 // One hook runtime per bundle: the components close over the stub they were
 // materialized with, so loading and rendering must share it.
 const officialReact = createReactStub();
@@ -210,6 +217,30 @@ await check("the shipped bundle speaks the carrier verbs the installed generatio
     !/pending\.cancel\(/.test(shipped) && !shipped.includes("rejectPending"),
     "rejecting a review belongs to the official panel; this control only answers it",
   );
+});
+
+await check("the decision ring resolves the occupancy the official meter resolves", async () => {
+  // The ring is drawn from a resolution this bundle has to repeat: a bundled
+  // client may only require the shell seeds, so the official `contextOccupancy`
+  // cannot be imported. Pinning the official side is what keeps the two numbers
+  // — the one on this card and the one the composer meter shows afterwards —
+  // from drifting apart without a failure.
+  assert.ok(
+    /useProjection\("contextPressure"\)/.test(meter.source),
+    "the official meter no longer reads the contextPressure projection",
+  );
+  assert.ok(
+    /projectedTokens \?\? pressure\?\.pressureTokens/.test(meter.source),
+    "the official occupancy numerator changed; the ring must follow it",
+  );
+  assert.ok(/Math\.min\(100, Math\.round\(/.test(meter.source), "the official occupancy bounding changed");
+  const shipped = readFileSync(fileURLToPath(new URL("../lib/client.js", import.meta.url)), "utf8");
+  for (const literal of ["contextPressure", "projectedTokens", "pressureTokens", "contextWindow"]) {
+    assert.ok(
+      shipped.includes(literal),
+      `the shipped bundle no longer mentions ${literal}; it cannot be resolving the official reading`,
+    );
+  }
 });
 
 console.log(failures === 0 ? "\nall official-parity checks passed" : `\n${failures} official-parity check(s) failed`);
